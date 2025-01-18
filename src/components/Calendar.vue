@@ -1,8 +1,6 @@
 <template>
   <div class="max-w-screen-xl flex flex-col items-center">
-    <!-- Контейнер двух месяцев в горизонтальном отображении -->
     <div class="flex flex-row justify-center gap-8">
-      <!-- Первый месяц -->
       <div class="bg-gray-100 p-4 rounded shadow">
         <div class="flex justify-between w-full max-w-md mb-4">
           <button @click="prevMonth" class="btn">&lt;</button>
@@ -24,7 +22,6 @@
         </div>
       </div>
 
-      <!-- Второй месяц -->
       <div class="bg-gray-100 p-4 rounded shadow">
         <div class="flex justify-between w-full max-w-md mb-4">
           <h2 class="text-lg font-bold text-gray-700">{{ nextMonthYear }}</h2>
@@ -65,7 +62,6 @@
 <script setup lang="ts">
 import {ref, computed} from 'vue';
 
-// Utilities to calculate dates
 const getDaysInMonth = (year: number, month: number) => {
   const days: { date: number, fullDate: Date }[] = [];
   const date = new Date(year, month, 1);
@@ -76,7 +72,6 @@ const getDaysInMonth = (year: number, month: number) => {
   return days;
 };
 
-// State management
 const currentDate = ref(new Date());
 const selectedRange = ref<{ start: Date | null; end: Date | null }>({start: null, end: null});
 
@@ -94,7 +89,6 @@ const currentMonthYear = computed(() => {
   return new Date(currentYear.value, currentMonth.value).toLocaleString('default', {month: 'long', year: 'numeric'});
 });
 
-// Next month's data
 const nextMonth = computed(() => (currentMonth.value + 1) % 12);
 const nextYear = computed(() => (currentMonth.value === 11 ? currentYear.value + 1 : currentYear.value));
 const nextMonthDays = computed(() => getDaysInMonth(nextYear.value, nextMonth.value));
@@ -102,7 +96,6 @@ const nextMonthYear = computed(() => {
   return new Date(nextYear.value, nextMonth.value).toLocaleString('default', {month: 'long', year: 'numeric'});
 });
 
-// Methods
 const prevMonth = () => {
   if (currentMonth.value === 0) {
     currentMonth.value = 11;
