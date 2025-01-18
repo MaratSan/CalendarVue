@@ -10,7 +10,6 @@ This is a reusable Vue 3 component for displaying two months of a calendar side 
 - Highlights the current date.
 - Customizable favorite terms.
 - Interactive hover effects for better user experience.
-- Responsive and accessible design.
 
 ## Installation
 1. Clone the repository or copy the component files into your project.
