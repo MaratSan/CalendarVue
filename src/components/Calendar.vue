@@ -6,16 +6,23 @@
           <button @click="prevMonth" class="btn">&lt;</button>
           <h2 class="text-lg font-bold text-gray-700">{{ currentMonthYear }}</h2>
         </div>
-
         <div class="calendar-body flex flex-col items-center">
           <div class="grid grid-cols-7 gap-2">
             <div v-for="day in daysOfWeek" :key="day" class="uppercase font-bold text-center text-gray-600">
               {{ day }}
             </div>
-
-            <div v-for="(day, index) in daysInMonth" :key="index"
-                 :class="['flex justify-center items-center border rounded cursor-pointer hover:bg-blue-200 hover:shadow-lg transition-colors', isSelected(day) ? 'bg-blue-500 text-white' : 'bg-white text-gray-700', isToday(day) ? 'bg-blue-100' : '']"
-                 @click="selectDay(day)">
+            <div
+                v-for="(day, index) in daysInMonth"
+                :key="index"
+                :class="[
+                'flex justify-center items-center border rounded cursor-pointer hover:bg-blue-200 hover:shadow-lg transition-colors',
+                isInRange(day) && day.isCurrentMonth ? 'bg-blue-500 text-white' : 'bg-white text-gray-700',
+                isTodayDay(day) && day.isCurrentMonth ? 'bg-blue-100' : '',
+                isStartDate(day) && day.isCurrentMonth ? 'bg-blue-500 text-white' : '',
+                isDifferentMonth(day) ? 'text-gray-400 cursor-not-allowed hover:bg-white' : ''
+              ]"
+                @click="!isDifferentMonth(day) && selectDay(day)"
+            >
               {{ day.date }}
             </div>
           </div>
@@ -27,16 +34,23 @@
           <h2 class="text-lg font-bold text-gray-700">{{ nextMonthYear }}</h2>
           <button @click="nextMonthHandler" class="btn">&gt;</button>
         </div>
-
         <div class="calendar-body flex flex-col items-center">
           <div class="grid grid-cols-7 gap-2">
             <div v-for="day in daysOfWeek" :key="day" class="uppercase font-bold text-center text-gray-600">
               {{ day }}
             </div>
-
-            <div v-for="(day, index) in nextMonthDays" :key="index"
-                 :class="['flex justify-center items-center border rounded cursor-pointer hover:bg-blue-200 hover:shadow-lg transition-colors', isSelected(day) ? 'bg-blue-500 text-white' : 'bg-white text-gray-700', isToday(day) ? 'bg-blue-100' : '']"
-                 @click="selectDay(day)">
+            <div
+                v-for="(day, index) in nextMonthDays"
+                :key="index"
+                :class="[
+                'flex justify-center items-center border rounded cursor-pointer hover:bg-blue-200 hover:shadow-lg transition-colors',
+                isInRange(day) && day.isCurrentMonth ? 'bg-blue-500 text-white' : 'bg-white text-gray-700',
+                isTodayDay(day) && day.isCurrentMonth ? 'bg-blue-100' : '',
+                isStartDate(day) && day.isCurrentMonth ? 'bg-blue-500 text-white' : '',
+                isDifferentMonth(day) ? 'text-gray-400 cursor-not-allowed hover:bg-white' : ''
+              ]"
+                @click="!isDifferentMonth(day) && selectDay(day)"
+            >
               {{ day.date }}
             </div>
           </div>
@@ -45,14 +59,18 @@
     </div>
 
     <div class="mt-4">
-      <h3 class="text-lg font-semibold text-gray-700">Favorite Terms</h3>
+      <h3 class="text-lg font-semibold text-gray-700">Oblíbené termíny</h3>
       <ul class="mt-2">
         <li v-for="term in favoriteTerms" :key="term.label">
-          <button
-              class="cursor-pointer hover:underline text-gray-600" @click="selectFavorite(term.range)"
-          >
-            {{ term.label }}
-          </button>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input
+                type="radio"
+                name="favorite-term"
+                class="form-radio text-blue-500"
+                @change="selectFavorite(term.range)"
+            />
+            <span class="text-gray-600">{{ term.label }}</span>
+          </label>
         </li>
       </ul>
     </div>
@@ -60,41 +78,111 @@
 </template>
 
 <script setup lang="ts">
-import {ref, computed} from 'vue';
+import { ref, computed } from 'vue';
+import {
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  addDays,
+  eachDayOfInterval,
+  format,
+  isToday,
+  isSameDay,
+  isWithinInterval,
+} from 'date-fns';
+import { cs } from 'date-fns/locale';
 
-const getDaysInMonth = (year: number, month: number) => {
-  const days: { date: number, fullDate: Date }[] = [];
-  const date = new Date(year, month, 1);
-  while (date.getMonth() === month) {
-    days.push({date: date.getDate(), fullDate: new Date(date)});
-    date.setDate(date.getDate() + 1);
-  }
-  return days;
-};
+const weekStartsOn = 1;
 
-const currentDate = ref(new Date());
-const selectedRange = ref<{ start: Date | null; end: Date | null }>({start: null, end: null});
-
-const daysOfWeek = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+const maxRange = ref(30);
+const minDate = ref(new Date());
+const locale = ref(cs); // Используем объект локализации
+const preselectedRange = ref<{ start: Date | null; end: Date | null }>({ start: null, end: null });
 const favoriteTerms = ref([
-  {label: 'Last Minute', range: {start: new Date(), end: new Date(new Date().setDate(new Date().getDate() + 7))}},
-  {label: 'Summer Vacation', range: {start: new Date(2025, 5, 1), end: new Date(2025, 7, 31)}}
+  { label: 'Last Minute', range: { start: new Date(), end: addDays(new Date(), 7) } },
+  { label: 'Listopad / Prosinec 2024', range: { start: new Date(2024, 10, 1), end: new Date(2024, 11, 31) } },
+  { label: 'Leden / Únor 2025', range: { start: new Date(2025, 0, 1), end: new Date(2025, 1, 28) } },
+  { label: 'Březen / Duben 2025', range: { start: new Date(2025, 2, 1), end: new Date(2025, 3, 30) } },
+  { label: 'Květen / Červen 2025', range: { start: new Date(2025, 4, 1), end: new Date(2025, 5, 30) } },
+  { label: 'Letní prázdniny 2025', range: { start: new Date(2025, 6, 1), end: new Date(2025, 7, 31) } },
 ]);
 
+const currentDate = ref(new Date());
 const currentMonth = ref(currentDate.value.getMonth());
 const currentYear = ref(currentDate.value.getFullYear());
 
-const daysInMonth = computed(() => getDaysInMonth(currentYear.value, currentMonth.value));
-const currentMonthYear = computed(() => {
-  return new Date(currentYear.value, currentMonth.value).toLocaleString('default', {month: 'long', year: 'numeric'});
+const selectedRange = ref<{ start: Date | null; end: Date | null }>({
+  start: preselectedRange.value.start,
+  end: preselectedRange.value.end,
+});
+
+const daysOfWeek = computed(() => {
+  const weekStart = startOfWeek(new Date(), { weekStartsOn });
+  return Array.from({ length: 7 }, (_, i) => format(addDays(weekStart, i), 'EEEEEE', { locale: locale.value }));
+});
+
+const daysInMonth = computed(() => {
+  const start = startOfWeek(startOfMonth(new Date(currentYear.value, currentMonth.value)), { weekStartsOn });
+  const end = endOfMonth(new Date(currentYear.value, currentMonth.value));
+  return eachDayOfInterval({ start, end }).map((date) => ({
+    date: format(date, 'd'),
+    fullDate: date,
+    isCurrentMonth: date.getMonth() === currentMonth.value,
+  }));
 });
 
 const nextMonth = computed(() => (currentMonth.value + 1) % 12);
 const nextYear = computed(() => (currentMonth.value === 11 ? currentYear.value + 1 : currentYear.value));
-const nextMonthDays = computed(() => getDaysInMonth(nextYear.value, nextMonth.value));
-const nextMonthYear = computed(() => {
-  return new Date(nextYear.value, nextMonth.value).toLocaleString('default', {month: 'long', year: 'numeric'});
+const nextMonthDays = computed(() => {
+  const start = startOfWeek(startOfMonth(new Date(nextYear.value, nextMonth.value)), { weekStartsOn });
+  const end = endOfMonth(new Date(nextYear.value, nextMonth.value));
+  return eachDayOfInterval({ start, end }).map((date) => ({
+    date: format(date, 'd'),
+    fullDate: date,
+    isCurrentMonth: date.getMonth() === nextMonth.value,
+  }));
 });
+
+const currentMonthYear = computed(() =>
+    format(new Date(currentYear.value, currentMonth.value), 'MMMM yyyy', { locale: locale.value })
+);
+const nextMonthYear = computed(() =>
+    format(new Date(nextYear.value, nextMonth.value), 'MMMM yyyy', { locale: locale.value })
+);
+
+const isTodayDay = (day: { date: string; fullDate: Date }) => isToday(day.fullDate);
+const isStartDate = (day: { date: string; fullDate: Date }) =>
+    selectedRange.value.start ? isSameDay(day.fullDate, selectedRange.value.start) : false;
+const isInRange = (day: { date: string; fullDate: Date }) => {
+  if (!selectedRange.value.start || !selectedRange.value.end) return false;
+  return isWithinInterval(day.fullDate, {
+    start: selectedRange.value.start,
+    end: selectedRange.value.end,
+  });
+};
+const isDifferentMonth = (day: { isCurrentMonth: boolean }) => !day.isCurrentMonth;
+
+const selectDay = (day: { date: string; fullDate: Date }) => {
+  if (!selectedRange.value.start) {
+    selectedRange.value.start = day.fullDate;
+  } else if (!selectedRange.value.end) {
+    const diff = (day.fullDate.getTime() - selectedRange.value.start.getTime()) / (1000 * 60 * 60 * 24);
+    if (diff <= maxRange.value) {
+      selectedRange.value.end = day.fullDate;
+    }
+  } else {
+    selectedRange.value = { start: day.fullDate, end: null };
+  }
+};
+
+const selectFavorite = (range: { start: Date; end: Date }) => {
+  selectedRange.value = { ...range };
+  const startMonth = range.start.getMonth();
+  const startYear = range.start.getFullYear();
+
+  currentMonth.value = startMonth;
+  currentYear.value = startYear;
+};
 
 const prevMonth = () => {
   if (currentMonth.value === 0) {
@@ -112,38 +200,6 @@ const nextMonthHandler = () => {
   } else {
     currentMonth.value += 1;
   }
-};
-
-const selectDay = (day: { date: number; fullDate: Date }) => {
-  if (!selectedRange.value.start) {
-    selectedRange.value.start = day.fullDate;
-  } else if (!selectedRange.value.end) {
-    selectedRange.value.end = day.fullDate;
-  } else {
-    selectedRange.value = {start: day.fullDate, end: null};
-  }
-};
-
-const isSelected = (day: { date: number; fullDate: Date }) => {
-  if (!selectedRange.value.start) return false;
-  if (!selectedRange.value.end) return day.fullDate.getTime() === selectedRange.value.start.getTime();
-  return (
-      day.fullDate.getTime() >= selectedRange.value.start.getTime() &&
-      day.fullDate.getTime() <= selectedRange.value.end.getTime()
-  );
-};
-
-const isToday = (day: { date: number; fullDate: Date }) => {
-  const today = new Date();
-  return (
-      day.fullDate.getDate() === today.getDate() &&
-      day.fullDate.getMonth() === today.getMonth() &&
-      day.fullDate.getFullYear() === today.getFullYear()
-  );
-};
-
-const selectFavorite = (range: { start: Date; end: Date }) => {
-  selectedRange.value = {...range};
 };
 </script>
 
@@ -166,5 +222,21 @@ const selectFavorite = (range: { start: Date; end: Date }) => {
   padding: 1rem;
   border-radius: 0.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.bg-blue-500 {
+  background-color: #007bff !important;
+}
+
+.text-white {
+  color: #fff !important;
+}
+
+.text-gray-400 {
+  color: #a0aec0;
+}
+
+.cursor-not-allowed {
+  cursor: not-allowed;
 }
 </style>
